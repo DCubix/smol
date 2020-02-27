@@ -1,0 +1,23 @@
+let somevar: int = 10;
+
+fun sum(a : int, b : int) : int {
+	return a + b;
+}
+
+if somevar == 10 {
+	print('Is 10');
+} elif somevar > 10 {
+	print('Is greater');
+} else {
+	print('Is invalid');
+}
+
+for item : int in ['a', 'b', 'c'] {
+	print(item);
+}
+
+for i in 0..10 {
+	print(i);
+}
+
+sum(2, 2);
