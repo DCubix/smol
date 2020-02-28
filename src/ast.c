@@ -18,15 +18,29 @@ static const char* AST_TYPES[] = {
 	"NT_BINARY_SUB",
 	"NT_BINARY_MUL",
 	"NT_BINARY_DIV",
-	"NT_BINARY_MOD"
+	"NT_BINARY_MOD",
+
+	"NT_BINARY_LSH",
+	"NT_BINARY_RSH",
+	"NT_BINARY_GREATER",
+	"NT_BINARY_LESS",
+	"NT_BINARY_GREATEREQUALS",
+	"NT_BINARY_LESSEQUALS",
+	"NT_BINARY_EQUALITY",
+	"NT_BINARY_INEQUALITY",
+
+	"NT_BINARY_BITAND",
+	"NT_BINARY_BITXOR",
+	"NT_BINARY_BITOR",
+
+	"NT_BINARY_LOGICAND",
+	"NT_BINARY_LOGICOR"
 };
 
 Node* node_new() {
 	Node* nd = (Node*) malloc(sizeof(Node));
 	nd->type = NT_UNKNOWN;
 	nd->string = NULL;
-	nd->op.left = NULL;
-	nd->op.right = NULL;
 	return nd;
 }
 
@@ -76,7 +90,7 @@ void ast_print(Node* root, int pad) {
 	switch (root->type) {
 		case NT_NUMBER: _printpad(pad + 2); printf("value = %f\n", root->value); break;
 		case NT_STRING: _printpad(pad + 2); printf("value = %s\n", root->string); break;
-		case NT_BOOL: _printpad(pad + 2); printf("value = %s", root->boolean ? "true" : "false"); break;
+		case NT_BOOL: _printpad(pad + 2); printf("value = %s\n", root->boolean ? "true" : "false"); break;
 		case NT_UNARY_MINUS:
 		case NT_UNARY_NOT:
 		case NT_UNARY_BITNOT: ast_print(root->op.right, pad + 2); break;
@@ -84,6 +98,19 @@ void ast_print(Node* root, int pad) {
 		case NT_BINARY_DIV:
 		case NT_BINARY_MOD:
 		case NT_BINARY_MUL:
+		case NT_BINARY_LSH:
+		case NT_BINARY_RSH:
+		case NT_BINARY_LESS:
+		case NT_BINARY_GREATER:
+		case NT_BINARY_LESSEQUALS:
+		case NT_BINARY_GREATEREQUALS:
+		case NT_BINARY_EQUALITY:
+		case NT_BINARY_INEQUALITY:
+		case NT_BINARY_BITAND:
+		case NT_BINARY_BITOR:
+		case NT_BINARY_BITXOR:
+		case NT_BINARY_LOGICAND:
+		case NT_BINARY_LOGICOR:
 		case NT_BINARY_SUB: ast_print(root->op.left, pad + 2); ast_print(root->op.right, pad + 2); break;
 		default: break;
 	}
@@ -96,6 +123,18 @@ Node* ast_parse_atom(Parser* p) {
 		Node* nd = node_new();
 		nd->type = NT_NUMBER;
 		nd->value = strtod(parser_current(p).lexeme, NULL);
+		parser_advance(p);
+		return nd;
+	} else if (parser_accept(p, TT_BOOL, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_BOOL;
+		nd->boolean = strcmp(parser_current(p).lexeme, "true") == 0;
+		parser_advance(p);
+		return nd;
+	} else if (parser_accept(p, TT_STRING, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_STRING;
+		nd->string = parser_current(p).lexeme;
 		parser_advance(p);
 		return nd;
 	} else if (parser_accept(p, TT_LPAREN, NULL)) {
@@ -177,6 +216,152 @@ Node* ast_parse_addsub(Parser* p) {
 		Node* right = ast_parse_addsub(p);
 		Node* nd = node_new();
 		nd->type = NT_BINARY_SUB;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_shifts(Parser* p) {
+	Node* left = ast_parse_addsub(p);
+	if (parser_accept(p, TT_LSHIFT, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_shifts(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_LSH;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	} else if (parser_accept(p, TT_RSHIFT, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_shifts(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_RSH;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_comparison(Parser* p) {
+	Node* left = ast_parse_shifts(p);
+	if (parser_accept(p, TT_GREATER, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_comparison(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_GREATER;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	} else if (parser_accept(p, TT_GREATEREQUALS, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_comparison(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_GREATEREQUALS;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	} else if (parser_accept(p, TT_LESS, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_comparison(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_LESS;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	} else if (parser_accept(p, TT_LESSEQUALS, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_comparison(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_LESSEQUALS;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	} else if (parser_accept(p, TT_COMPEQUALS, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_comparison(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_EQUALITY;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	} else if (parser_accept(p, TT_COMPNOTEQUALS, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_comparison(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_INEQUALITY;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_bitand(Parser* p) {
+	Node* left = ast_parse_comparison(p);
+	if (parser_accept(p, TT_BITAND, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_bitand(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_BITAND;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_bitxor(Parser* p) {
+	Node* left = ast_parse_bitand(p);
+	if (parser_accept(p, TT_BITXOR, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_bitxor(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_BITXOR;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_bitor(Parser* p) {
+	Node* left = ast_parse_bitxor(p);
+	if (parser_accept(p, TT_BITOR, NULL)) {
+		parser_advance(p);
+		Node* right = ast_parse_bitor(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_BITOR;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_logicand(Parser* p) {
+	Node* left = ast_parse_bitor(p);
+	if (parser_accept(p, TT_KEYWORD, "and")) {
+		parser_advance(p);
+		Node* right = ast_parse_logicand(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_LOGICAND;
+		nd->op.left = left;
+		nd->op.right = right;
+		return nd;
+	}
+	return left;
+}
+
+Node* ast_parse_logicor(Parser* p) {
+	Node* left = ast_parse_logicand(p);
+	if (parser_accept(p, TT_KEYWORD, "or")) {
+		parser_advance(p);
+		Node* right = ast_parse_logicor(p);
+		Node* nd = node_new();
+		nd->type = NT_BINARY_LOGICOR;
 		nd->op.left = left;
 		nd->op.right = right;
 		return nd;

@@ -26,7 +26,9 @@ static const char* KEYWORDS[] = {
 	"int",
 	"double",
 	"string",
-	"bool"
+	"bool",
+	"true",
+	"false"
 };
 
 const char* TOKENS[] = {
@@ -76,8 +78,8 @@ const char* TOKENS[] = {
 };
 
 int is_keyword(const char* id) {
-	for (int i = 0; i < 17; i++) {
-		if (strcasecmp(KEYWORDS[i], id) == 0) return 1;
+	for (int i = 0; i < 18; i++) {
+		if (strcmp(KEYWORDS[i], id) == 0) return 1; // Keywords ARE case sensitive
 	}
 	return 0;
 }
@@ -116,7 +118,7 @@ int lexer_lex(const char* input, Token** out) {
 			scanner_read(sc, _scan_identifier, tok.lexeme);
 
 			if (is_keyword(tok.lexeme)) {
-				if (strcasecmp(tok.lexeme, "true") == 0 || strcasecmp(tok.lexeme, "false") == 0)
+				if (strcmp(tok.lexeme, "true") == 0 || strcmp(tok.lexeme, "false") == 0)
 					tok.type = TT_BOOL;
 				else
 					tok.type = TT_KEYWORD;
@@ -138,7 +140,7 @@ int lexer_lex(const char* input, Token** out) {
 				if (scanner_peek(sc) == '\\') {
 					scanner_scan(sc);
 					char es = scanner_scan(sc);
-					switch (scanner_peek(sc)) {
+					switch (es) {
 						case 't': tok.lexeme[i] = '\t'; break;
 						case 'n': tok.lexeme[i] = '\n'; break;
 						case 'f': tok.lexeme[i] = '\f'; break;
