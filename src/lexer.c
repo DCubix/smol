@@ -4,6 +4,11 @@
 #include <memory.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+#include "dynarray.h"
+
+DEF_DYN_ARRAY(Token);
 
 static const char* KEYWORDS[] = {
 	"return",
@@ -24,6 +29,52 @@ static const char* KEYWORDS[] = {
 	"bool"
 };
 
+static const char* TOKENS[] = {
+	"TT_SEMICOLON",
+	"TT_ID",
+	"TT_INTEGER",
+	"TT_FLOAT",
+	"TT_STRING",
+	"TT_BOOL",
+	"TT_LBRACE",
+	"TT_RBRACE",
+	"TT_KEYWORD",
+	"TT_LPAREN",
+	"TT_RPAREN",
+	"TT_RBRACKET",
+	"TT_LBRACKET",
+	"TT_QUESTION",
+	"TT_COLON",
+	"TT_DOTS",
+	"TT_BITOR",
+	"TT_BITAND",
+	"TT_BITXOR",
+	"TT_LSHIFT",
+	"TT_RSHIFT",
+	"TT_PLUS",
+	"TT_MINUS",
+	"TT_ASTERISK",
+	"TT_SLASH",
+	"TT_PERCENT",
+	"TT_EXCLAMATION",
+	"TT_BITNOT",
+	"TT_COMMA",
+	"TT_POINT",
+	"TT_EQUALS",
+	"TT_LESS",
+	"TT_GREATER",
+	"TT_LESSEQUALS",
+	"TT_GREATEREQUALS",
+	"TT_PLUSEQUALS",
+	"TT_MINUSEQUALS",
+	"TT_MULEQUALS",
+	"TT_DIVEQUALS",
+	"TT_COMPEQUALS",
+	"TT_COMPNOTEQUALS",
+	"TT_LOGICOR",
+	"TT_LOGICAND"
+};
+
 int is_keyword(const char* id) {
 	for (int i = 0; i < 17; i++) {
 		if (strcasecmp(KEYWORDS[i], id) == 0) return 1;
@@ -36,148 +87,204 @@ int _scan_identifier(char c) {
 }
 
 int _scan_number(char c) {
-	return c == '.' || isdigit(c) || ishexnumber(c) || c == 'x' || c == 'X';
+	return c == '.' || isdigit(c) || isxdigit(c) || c == 'x' || c == 'X';
 }
 
-int lexer_lex(const char* input, Token* out) {
-	Scanner* sc = scanner_new(input);
-	int tk = 0;
+void print_token(Token tok) {
+	if (tok.lexeme == NULL) printf("%s() ", TOKENS[tok.type], tok.lexeme);
+	else printf("%s(\'%s\') ", TOKENS[tok.type], tok.lexeme);
+}
 
-#define PUSH(tp) out[tk++].type = (tp)
-#define TOK() out[tk].lexeme
-#define NEW_TOK() memset(TOK(), 0, LEX_MAX_LEXEME_SIZE)
+void token_init(Token* tok) {
+	tok->lexeme = (char*) malloc(sizeof(char) * LEX_MAX_LEXEME_SIZE);
+	memset(tok->lexeme, 0, sizeof(char) * LEX_MAX_LEXEME_SIZE);
+}
+
+int lexer_lex(const char* input, Token** out) {
+	TokenArray ret;
+	TokenArray_new(&ret);
+
+	Scanner* sc = scanner_new(input);
+
+#define PUSH(tp, tok) tok.type = tp, TokenArray_push(&ret, tok)
+#define SPUSH(tp) { Token tok; tok.lexeme = NULL; tok.type = tp; TokenArray_push(&ret, tok); }
 
 	while (scanner_peek(sc) != '\0') {
 		char c = scanner_peek(sc);
 		if (isalpha(c) || c == '_') { // ID
-			NEW_TOK();
-			scanner_read(sc, _scan_identifier, TOK());
+			Token tok; token_init(&tok);
+			scanner_read(sc, _scan_identifier, tok.lexeme);
 
-			if (is_keyword(TOK())) {
-				if (strcasecmp(TOK(), "true") == 0 || strcasecmp(TOK(), "false") == 0)
-					PUSH(TT_BOOL);
+			if (is_keyword(tok.lexeme)) {
+				if (strcasecmp(tok.lexeme, "true") == 0 || strcasecmp(tok.lexeme, "false") == 0)
+					tok.type = TT_BOOL;
 				else
-					PUSH(TT_KEYWORD);
-			} else PUSH(TT_ID);
+					tok.type = TT_KEYWORD;
+			} else tok.type = TT_ID;
+			TokenArray_push(&ret, tok);
 		} else if (isdigit(c)) { // NUMBER
-			NEW_TOK();
-			scanner_read(sc, _scan_number, TOK());
+			Token tok; token_init(&tok);
+			scanner_read(sc, _scan_number, tok.lexeme);
 
-			if (strstr(out[tk].lexeme, ".") != NULL) {
-				PUSH(TT_FLOAT);
+			if (strstr(tok.lexeme, ".") != NULL) {
+				tok.type = TT_FLOAT;
 			} else {
-				PUSH(TT_INTEGER);
+				tok.type = TT_INTEGER;
 			}
-		} else if (c == '"') { // STRING
+			TokenArray_push(&ret, tok);
+		} else if (c == '\'') { // STRING
 			scanner_scan(sc);
-			NEW_TOK();
+			
+			Token tok; token_init(&tok);
+			tok.type = TT_STRING;
 
 			int i = 0;
-			while (scanner_peek(sc) != '"' && scanner_peek(sc) != '\0') {
+			while (scanner_peek(sc) != '\'' && scanner_peek(sc) != '\0') {
 				if (scanner_peek(sc) == '\\') {
 					scanner_scan(sc);
 					char es = scanner_scan(sc);
 					switch (scanner_peek(sc)) {
-						case 't': TOK()[i] = '\t'; break;
-						case 'n': TOK()[i] = '\n'; break;
-						case 'f': TOK()[i] = '\f'; break;
-						case 'r': TOK()[i] = '\r'; break;
-						case 'a': TOK()[i] = '\a'; break;
-						case 'b': TOK()[i] = '\b'; break;
-						case '\\': TOK()[i] = '\\'; break;
+						case 't': tok.lexeme[i] = '\t'; break;
+						case 'n': tok.lexeme[i] = '\n'; break;
+						case 'f': tok.lexeme[i] = '\f'; break;
+						case 'r': tok.lexeme[i] = '\r'; break;
+						case 'a': tok.lexeme[i] = '\a'; break;
+						case 'b': tok.lexeme[i] = '\b'; break;
+						case '\\': tok.lexeme[i] = '\\'; break;
 						case 'x': {
 							char hex[2];
 							hex[0] = scanner_scan(sc);
 							hex[1] = scanner_scan(sc);
 							int code = strtol(hex, NULL, 16);
-							TOK()[i] = '\x00' + code;
+							tok.lexeme[i] = '\x00' + code;
 						} break;
-						default: TOK()[i] = es; break;
+						default: tok.lexeme[i] = es; break;
 					}
 				} else {
-					TOK()[i] = scanner_scan(sc);
+					tok.lexeme[i] = scanner_scan(sc);
 				}
 				i++;
 			}
 			scanner_scan(sc);
-
-			PUSH(TT_STRING);
+			TokenArray_push(&ret, tok);
 		} else if (c == '{') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_LBRACE);
+			SPUSH(TT_LBRACE);
 		} else if (c == '}') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_RBRACE);
+			SPUSH(TT_RBRACE);
 		} else if (c == '(') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_LPAREN);
+			SPUSH(TT_LPAREN);
 		} else if (c == ')') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_RPAREN);
+			SPUSH(TT_RPAREN);
 		} else if (c == '[') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_LBRACKET);
+			SPUSH(TT_LBRACKET);
 		} else if (c == ']') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_RBRACKET);
+			SPUSH(TT_RBRACKET);
 		} else if (c == '?') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_QUESTION);
+			SPUSH(TT_QUESTION);
 		} else if (c == ':') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_COLON);
+			SPUSH(TT_COLON);
 		} else if (c == ';') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_SEMICOLON);
+			SPUSH(TT_SEMICOLON);
 		} else if (c == '.') {
 			scanner_scan(sc);
-			NEW_TOK();
 			if (scanner_peek(sc) == '.') {
 				scanner_scan(sc);
-				PUSH(TT_DOTS);
-			} else PUSH(TT_POINT);
+				SPUSH(TT_DOTS);
+			} else SPUSH(TT_POINT);
 		} else if (c == '|') {
 			scanner_scan(sc);
-			NEW_TOK(); 
 			if (scanner_peek(sc) == '|') {
 				scanner_scan(sc);
-				PUSH(TT_LOGICOR);
-			} else PUSH(TT_BITOR);
+				SPUSH(TT_LOGICOR);
+			} else SPUSH(TT_BITOR);
 		} else if (c == '&') {
 			scanner_scan(sc);
-			NEW_TOK(); 
 			if (scanner_peek(sc) == '&') {
 				scanner_scan(sc);
-				PUSH(TT_LOGICAND);
-			} else PUSH(TT_BITAND);
+				SPUSH(TT_LOGICAND);
+			} else SPUSH(TT_BITAND);
 		} else if (c == '<') {
 			scanner_scan(sc);
-			NEW_TOK(); 
 			if (scanner_peek(sc) == '<') {
 				scanner_scan(sc);
-				PUSH(TT_LSHIFT);
+				SPUSH(TT_LSHIFT);
 			} else if (scanner_peek(sc) == '=') {
 				scanner_scan(sc);
-				PUSH(TT_LESSEQUALS);
-			} else PUSH(TT_LESS);
+				SPUSH(TT_LESSEQUALS);
+			} else SPUSH(TT_LESS);
 		} else if (c == '>') {
 			scanner_scan(sc);
-			NEW_TOK(); 
 			if (scanner_peek(sc) == '>') {
 				scanner_scan(sc);
-				PUSH(TT_RSHIFT);
+				SPUSH(TT_RSHIFT);
 			} else if (scanner_peek(sc) == '=') {
 				scanner_scan(sc);
-				PUSH(TT_GREATEREQUALS);
-			} else PUSH(TT_GREATER);
+				SPUSH(TT_GREATEREQUALS);
+			} else SPUSH(TT_GREATER);
+		} else if (c == '=') {
+			scanner_scan(sc);
+			if (scanner_peek(sc) == '=') {
+				scanner_scan(sc);
+				SPUSH(TT_COMPEQUALS);
+			} else SPUSH(TT_EQUALS);
+		} else if (c == '+') {
+			scanner_scan(sc);
+			if (scanner_peek(sc) == '=') {
+				scanner_scan(sc);
+				SPUSH(TT_PLUSEQUALS);
+			} else SPUSH(TT_PLUS);
+		} else if (c == '-') {
+			scanner_scan(sc);
+			if (scanner_peek(sc) == '=') {
+				scanner_scan(sc);
+				SPUSH(TT_MINUSEQUALS);
+			} else SPUSH(TT_MINUS);
+		} else if (c == '*') {
+			scanner_scan(sc);
+			if (scanner_peek(sc) == '=') {
+				scanner_scan(sc);
+				SPUSH(TT_MULEQUALS);
+			} else SPUSH(TT_ASTERISK);
+		} else if (c == '/') {
+			scanner_scan(sc);
+			if (scanner_peek(sc) == '=') {
+				scanner_scan(sc);
+				SPUSH(TT_DIVEQUALS);
+			} else SPUSH(TT_SLASH);
 		} else if (c == '^') {
 			scanner_scan(sc);
-			NEW_TOK(); PUSH(TT_BITXOR);
+			SPUSH(TT_BITXOR);
+		} else if (c == ',') {
+			scanner_scan(sc);
+			SPUSH(TT_COMMA);
+		} else if (c == '%') {
+			scanner_scan(sc);
+			SPUSH(TT_PERCENT);
+		} else if (c == '~') {
+			scanner_scan(sc);
+			SPUSH(TT_BITNOT);
+		} else if (c == '!') {
+			scanner_scan(sc);
+			if (scanner_peek(sc) == '=') {
+				scanner_scan(sc);
+				SPUSH(TT_COMPNOTEQUALS);
+			} else SPUSH(TT_EXCLAMATION);
 		} else {
 			scanner_scan(sc);
 		}
 	}
 
 	scanner_free(sc);
-	return tk;
+
+	*out = ret.data;
+	return ret.len;
 }

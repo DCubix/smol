@@ -51,10 +51,13 @@ enum TokenType {
 
 #define LEX_MAX_LEXEME_SIZE 65536
 typedef struct Token_t {
-	char lexeme[LEX_MAX_LEXEME_SIZE];
+	char* lexeme;
 	int type;
 } Token;
 
-extern int lexer_lex(const char* input, Token* out);
+extern void token_init(Token* tok);
+
+extern void print_token(Token tok);
+extern int lexer_lex(const char* input, Token** out);
 
 #endif // LEXER_H

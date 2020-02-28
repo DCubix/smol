@@ -8,12 +8,13 @@ Scanner* scanner_new(const char* buf) {
 	Scanner* scan = (Scanner*) malloc(sizeof(Scanner));
 	scan->size = strlen(buf);
 	scan->buffer = (char*) malloc(sizeof(char) * scan->size);
+	scan->pos = 0;
 	strcpy(scan->buffer, buf);
 	return scan;
 }
 
 void scanner_free(Scanner* scanner) {
-	free(scanner->buffer);
+	//free(scanner->buffer);
 	scanner->pos = 0;
 	free(scanner);
 }
