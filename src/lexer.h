@@ -6,8 +6,7 @@
 enum TokenType {
 	TT_SEMICOLON = 0,
 	TT_ID,
-	TT_INTEGER,
-	TT_FLOAT,
+	TT_NUMBER,
 	TT_STRING,
 	TT_BOOL,
 	TT_LBRACE,
@@ -46,8 +45,11 @@ enum TokenType {
 	TT_COMPEQUALS,
 	TT_COMPNOTEQUALS,
 	TT_LOGICOR,
-	TT_LOGICAND
+	TT_LOGICAND,
+	TT_EOF
 };
+
+extern const char* TOKENS[];
 
 #define LEX_MAX_LEXEME_SIZE 65536
 typedef struct Token_t {

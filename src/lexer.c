@@ -29,11 +29,10 @@ static const char* KEYWORDS[] = {
 	"bool"
 };
 
-static const char* TOKENS[] = {
+const char* TOKENS[] = {
 	"TT_SEMICOLON",
 	"TT_ID",
-	"TT_INTEGER",
-	"TT_FLOAT",
+	"TT_NUMBER",
 	"TT_STRING",
 	"TT_BOOL",
 	"TT_LBRACE",
@@ -72,7 +71,8 @@ static const char* TOKENS[] = {
 	"TT_COMPEQUALS",
 	"TT_COMPNOTEQUALS",
 	"TT_LOGICOR",
-	"TT_LOGICAND"
+	"TT_LOGICAND",
+	"TT_EOF"
 };
 
 int is_keyword(const char* id) {
@@ -91,7 +91,7 @@ int _scan_number(char c) {
 }
 
 void print_token(Token tok) {
-	if (tok.lexeme == NULL) printf("%s() ", TOKENS[tok.type], tok.lexeme);
+	if (tok.lexeme == NULL) printf("%s() ", TOKENS[tok.type]);
 	else printf("%s(\'%s\') ", TOKENS[tok.type], tok.lexeme);
 }
 
@@ -125,12 +125,7 @@ int lexer_lex(const char* input, Token** out) {
 		} else if (isdigit(c)) { // NUMBER
 			Token tok; token_init(&tok);
 			scanner_read(sc, _scan_number, tok.lexeme);
-
-			if (strstr(tok.lexeme, ".") != NULL) {
-				tok.type = TT_FLOAT;
-			} else {
-				tok.type = TT_INTEGER;
-			}
+			tok.type = TT_NUMBER;
 			TokenArray_push(&ret, tok);
 		} else if (c == '\'') { // STRING
 			scanner_scan(sc);
@@ -284,6 +279,8 @@ int lexer_lex(const char* input, Token** out) {
 	}
 
 	scanner_free(sc);
+
+	SPUSH(TT_EOF);
 
 	*out = ret.data;
 	return ret.len;

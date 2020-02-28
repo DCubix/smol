@@ -1,6 +1,6 @@
-let somevar: int = 10;
+let somevar = 10;
 
-fun sum(a : int, b : int) : int {
+fun sum(a, b) {
 	return a + b;
 }
 
@@ -12,7 +12,7 @@ if somevar == 10 {
 	print('Is invalid');
 }
 
-for item : int in ['a', 'b', 'c'] {
+for item in ['a', 'b', 'c'] {
 	print(item);
 }
 

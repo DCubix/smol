@@ -66,7 +66,7 @@ args : ID (',' ID)*;
 
 funArgs : expr (',' expr)*;
 
-argAssign : ID ':' ID ('=' expr)?;
+argAssign : ID ('=' expr)?;
 
 argsInit : argAssign (',' argAssign)*;
 
