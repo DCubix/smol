@@ -3,6 +3,8 @@
 
 #include "lexer.h"
 
+#define AST_NODE_CHILDREN_CAPACITY 10
+
 typedef struct Node_t {
 	enum {
 		NT_UNKNOWN = 0,
@@ -37,15 +39,21 @@ typedef struct Node_t {
 		NT_BINARY_LOGICOR
 		// TODO: Add More
 	} type;
+
 	union {
 		double value;
 		char* string;
 		int boolean;
-		struct { struct Node_t *left, *right; } op;
 	};
+
+	struct Node_t** children;
+	int childCount;
+	int capacity;
 } Node;
 
 extern Node* node_new();
+extern void node_free(Node* node);
+extern void node_push_child(Node* root, Node* child);
 
 typedef struct Parser_t {
 	Token* tokens;
