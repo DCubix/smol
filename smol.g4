@@ -30,9 +30,7 @@ letStmt : 'let' argsInit;
 
 assignment : expr ASSIGN expr | expr;
 
-expr : expr '?' expr ':' expr | range;
-
-range : logicOR '..' logicOR | logicOR;
+expr : logicOR '?' expr ':' expr | logicOR;
 
 logicOR : logicAND 'or' expr | logicAND;
 

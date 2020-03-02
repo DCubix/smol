@@ -34,7 +34,33 @@ static const char* AST_TYPES[] = {
 	"NT_BINARY_BITOR",
 
 	"NT_BINARY_LOGICAND",
-	"NT_BINARY_LOGICOR"
+	"NT_BINARY_LOGICOR",
+
+	"NT_TERNARY",
+	"NT_ASSIGN",
+	"NT_ASSIGN_ADD",
+	"NT_ASSIGN_SUB",
+	"NT_ASSIGN_MUL",
+	"NT_ASSIGN_DIV",
+
+	"NT_IDENTIFIER",
+	"NT_ARGS_INIT",
+	"NT_FUN_ARGS",
+	"NT_ARGS",
+
+	"NT_LET_STMT",
+	"NT_FUN_DECL_STMT",
+
+	"NT_RETURN",
+	"NT_CONTINUE",
+	"NT_BREAK",
+
+	"NT_IF",
+	"NT_ELSE",
+	"NT_ELSEIF",
+
+	"NT_STMT_LIST",
+	"NT_BLOCK"
 };
 
 Node* node_new() {
@@ -44,10 +70,13 @@ Node* node_new() {
 	nd->capacity = AST_NODE_CHILDREN_CAPACITY;
 	nd->childCount = 0;
 	nd->children = (Node**) malloc(sizeof(Node*) * nd->capacity);
+	for (int i = 0; i < nd->capacity; i++) nd->children[i] = NULL;
 	return nd;
 }
 
 void node_free(Node* node) {
+	if (node == NULL) return;
+
 	for (int i = 0; i < node->childCount; i++) {
 		node_free(node->children[i]);
 	}
@@ -110,6 +139,7 @@ void ast_print(Node* root, int pad) {
 	printf("%s {\n", AST_TYPES[root->type]);
 	switch (root->type) {
 		case NT_NUMBER: _printpad(pad + 2); printf("value = %f\n", root->value); break;
+		case NT_IDENTIFIER:
 		case NT_STRING: _printpad(pad + 2); printf("value = %s\n", root->string); break;
 		case NT_BOOL: _printpad(pad + 2); printf("value = %s\n", root->boolean ? "true" : "false"); break;
 		case NT_UNARY_MINUS:
@@ -133,6 +163,38 @@ void ast_print(Node* root, int pad) {
 		case NT_BINARY_LOGICAND:
 		case NT_BINARY_LOGICOR:
 		case NT_BINARY_SUB: ast_print(root->children[0], pad + 2); ast_print(root->children[1], pad + 2); break;
+		case NT_TERNARY:
+			ast_print(root->children[0], pad + 2);
+			ast_print(root->children[1], pad + 2);
+			ast_print(root->children[2], pad + 2);
+			break;
+		case NT_ASSIGN:
+		case NT_ASSIGN_ADD:
+		case NT_ASSIGN_SUB:
+		case NT_ASSIGN_MUL:
+		case NT_ASSIGN_DIV:
+			_printpad(pad + 2); printf("value = %s\n", root->string);
+			ast_print(root->children[0], pad + 2);
+			break;
+		case NT_ARGS:
+		case NT_FUN_ARGS:
+		case NT_IF:
+		case NT_ELSE:
+		case NT_ELSEIF:
+		case NT_BLOCK:
+		case NT_STMT_LIST:
+		case NT_ARGS_INIT: {
+			for (int i = 0; i < root->childCount; i++)
+				ast_print(root->children[i], pad + 2);
+		} break;
+		case NT_LET_STMT: ast_print(root->children[0], pad + 2); break;
+		case NT_FUN_DECL_STMT: {
+			_printpad(pad + 2); printf("name = %s\n", root->string);
+			ast_print(root->children[0], pad + 2);
+		} break;
+		case NT_RETURN:
+			ast_print(root->children[0], pad + 2);
+			break;
 		default: break;
 	}
 	_printpad(pad);
@@ -165,6 +227,12 @@ Node* ast_parse_atom(Parser* p) {
 			parser_advance(p);
 			return nd;
 		}
+	} else if (parser_accept(p, TT_ID, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_IDENTIFIER;
+		nd->string = parser_current(p).lexeme;
+		parser_advance(p);
+		return nd;
 	}
 	// TODO: Other types...
 	return NULL;
@@ -387,4 +455,238 @@ Node* ast_parse_logicor(Parser* p) {
 		return nd;
 	}
 	return left;
+}
+
+Node* ast_parse_expr(Parser* p) {
+	Node* cond = ast_parse_logicor(p);
+	if (parser_accept(p, TT_QUESTION, NULL)) {
+		parser_advance(p);
+		Node* ctrue = ast_parse_expr(p);
+		if (parser_expect(p, TT_COLON, NULL)) {
+			parser_advance(p);
+			Node* cfalse = ast_parse_expr(p);
+
+			Node* nd = node_new();
+			nd->type = NT_TERNARY;
+			node_push_child(nd, cond);
+			node_push_child(nd, ctrue);
+			node_push_child(nd, cfalse);
+			return nd;
+		}
+	}
+	return cond;
+}
+
+Node* ast_parse_assignment(Parser* p) {
+	Node* lvalue = ast_parse_expr(p);
+	if (parser_accept(p, TT_EQUALS, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_ASSIGN;
+		node_push_child(nd, ast_parse_assignment(p));
+		return nd;
+	} else if (parser_accept(p, TT_PLUSEQUALS, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_ASSIGN_ADD;
+		node_push_child(nd, ast_parse_expr(p));
+		return nd;
+	} else if (parser_accept(p, TT_MINUSEQUALS, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_ASSIGN_SUB;
+		node_push_child(nd, ast_parse_expr(p));
+		return nd;
+	} else if (parser_accept(p, TT_MULEQUALS, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_ASSIGN_MUL;
+		node_push_child(nd, ast_parse_expr(p));
+		return nd;
+	} else if (parser_accept(p, TT_DIVEQUALS, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_ASSIGN_DIV;
+		node_push_child(nd, ast_parse_expr(p));
+		return nd;
+	}
+	return lvalue;
+}
+
+Node* ast_parse_arg_assign(Parser* p) {
+	if (parser_expect(p, TT_ID, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_IDENTIFIER;
+		nd->string = parser_current(p).lexeme;
+		parser_advance(p);
+		if (parser_accept(p, TT_EQUALS, NULL)) {
+			parser_advance(p);
+			nd->type = NT_ASSIGN;
+			node_push_child(nd, ast_parse_expr(p));
+		}
+		return nd;
+	}
+	return NULL;
+}
+
+Node* ast_parse_args_init(Parser* p) {
+	Node* nd = node_new();
+	nd->type = NT_ARGS_INIT;
+	// get first
+	Node* first = ast_parse_arg_assign(p);
+	if (first != NULL) {
+		node_push_child(nd, first);
+		for (;;) {
+			if (parser_accept(p, TT_SEMICOLON, NULL)) {
+				break;
+			} else if (parser_accept(p, TT_RBRACKET, NULL)) {
+				break;
+			}
+			
+			if (parser_expect(p, TT_COMMA, NULL)) {
+				parser_advance(p);
+			} else break;
+			node_push_child(nd, ast_parse_arg_assign(p));
+		}
+	}
+	return nd;
+}
+
+Node* ast_parse_identifier(Parser* p) {
+	if (parser_expect(p, TT_ID, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_IDENTIFIER;
+		nd->string = parser_current(p).lexeme;
+		parser_advance(p);
+		return nd;
+	}
+	return NULL;
+}
+
+Node* ast_parse_args(Parser* p) {
+	Node* nd = node_new();
+	nd->type = NT_ARGS;
+	Node* first = ast_parse_identifier(p);
+	if (first != NULL) {
+		node_push_child(nd, first);
+		for (;;) {
+			if (parser_expect(p, TT_COMMA, NULL)) {
+				parser_advance(p);
+			} else break;
+			node_push_child(nd, ast_parse_identifier(p));
+		}
+	}
+	return nd;
+}
+
+Node* ast_parse_fun_args(Parser* p) {
+	Node* nd = node_new();
+	nd->type = NT_FUN_ARGS;
+	Node* first = ast_parse_expr(p);
+	if (first != NULL) {
+		node_push_child(nd, first);
+		for (;;) {
+			if (parser_expect(p, TT_COMMA, NULL)) {
+				parser_advance(p);
+			} else break;
+			node_push_child(nd, ast_parse_expr(p));
+		}
+	}
+	return nd;
+}
+
+Node* ast_parse_let_stmt(Parser* p) {
+	if (parser_accept(p, TT_KEYWORD, "let")) {
+		parser_advance(p);
+		Node* nd = node_new();
+		nd->type = NT_LET_STMT;
+		node_push_child(nd, ast_parse_args_init(p));
+		return nd;
+	}
+	return NULL;
+}
+
+Node* ast_parse_fun_def_stmt(Parser* p) {
+	if (parser_accept(p, TT_KEYWORD, "fun")) {
+		parser_advance(p);
+		if (parser_expect(p, TT_ID, NULL)) {
+			Node* nd = node_new();
+			nd->type = NT_FUN_DECL_STMT;
+			nd->string = parser_current(p).lexeme;
+			parser_advance(p);
+			if (parser_expect(p, TT_LPAREN, NULL)) {
+				parser_advance(p);
+				node_push_child(nd, ast_parse_args(p));
+				if (parser_expect(p, TT_RPAREN, NULL)) {
+					parser_advance(p);
+					return nd;
+				} else node_free(nd);
+			} else node_free(nd);
+		}
+	}
+	return NULL;
+}
+
+Node* ast_parse_stmt(Parser* p) {
+	if (parser_accept(p, TT_KEYWORD, "return")) {
+		parser_advance(p);
+		Node* nd = node_new();
+		nd->type = NT_RETURN;
+		if (!parser_accept(p, TT_SEMICOLON, NULL)) {
+			node_push_child(nd, ast_parse_expr(p));
+		} else {
+			node_free(nd);
+			return NULL;
+		}
+		return nd;
+	} else if (parser_accept(p, TT_KEYWORD, "continue")) {
+		Node* nd = node_new();
+		nd->type = NT_CONTINUE;
+		return nd;
+	} else if (parser_accept(p, TT_KEYWORD, "break")) {
+		Node* nd = node_new();
+		nd->type = NT_BREAK;
+		return nd;
+	} else if (parser_accept(p, TT_KEYWORD, "let")) {
+		return ast_parse_let_stmt(p);
+	} else if (parser_accept(p, TT_KEYWORD, "fun")) {
+		return ast_parse_fun_def_stmt(p);
+	}
+	return NULL;
+}
+
+Node* ast_parse_stmt_list(Parser* p) {
+	Node* nd = node_new();
+	nd->type = NT_STMT_LIST;
+	while (!parser_accept(p, TT_EOF, NULL)) {
+		node_push_child(nd, ast_parse_stmt(p));
+		if (!parser_expect(p, TT_SEMICOLON, NULL)) break;
+		parser_advance(p);
+	}
+	return nd;
+}
+
+Node* ast_parse_block(Parser* p) {
+	if (parser_accept(p, TT_LBRACE, NULL)) {
+		parser_advance(p);
+		Node* stmts = ast_parse_stmt_list(p);
+		if (parser_expect(p, TT_RBRACE, NULL)) {
+			parser_advance(p);
+			return stmts;
+		} else node_free(stmts);
+	}
+	return NULL;
+}
+
+Node* ast_parse_if(Parser* p) {
+	if (parser_accept(p, TT_KEYWORD, "if")) {
+		parser_advance(p);
+		Node* cond = ast_parse_expr(p);
+		if (parser_expect(p, TT_LBRACE, NULL) && cond != NULL) {
+			Node* body = ast_parse_block(p);
+			if (body != NULL) {
+				Node* nd = node_new();
+				nd->type = NT_IF;
+				node_push_child(nd, cond);
+				node_push_child(nd, body);
+				return nd;
+			}
+		} else node_free(cond);
+	}
+	return NULL;
 }

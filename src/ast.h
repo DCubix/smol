@@ -36,7 +36,34 @@ typedef struct Node_t {
 		NT_BINARY_BITOR,
 
 		NT_BINARY_LOGICAND,
-		NT_BINARY_LOGICOR
+		NT_BINARY_LOGICOR,
+
+		NT_TERNARY,
+		NT_ASSIGN,
+		NT_ASSIGN_ADD,
+		NT_ASSIGN_SUB,
+		NT_ASSIGN_MUL,
+		NT_ASSIGN_DIV,
+
+		NT_IDENTIFIER,
+		NT_ARGS_INIT,
+		NT_FUN_ARGS,
+		NT_ARGS,
+
+		NT_LET_STMT,
+		NT_FUN_DECL_STMT,
+
+		NT_RETURN,
+		NT_CONTINUE,
+		NT_BREAK,
+
+		NT_IF,
+		NT_ELSE,
+		NT_ELSEIF,
+
+		NT_STMT_LIST,
+		NT_BLOCK
+
 		// TODO: Add More
 	} type;
 
@@ -77,6 +104,22 @@ extern Node* ast_parse_bitor(Parser* p);
 extern Node* ast_parse_bitxor(Parser* p);
 extern Node* ast_parse_logicand(Parser* p);
 extern Node* ast_parse_logicor(Parser* p);
+extern Node* ast_parse_expr(Parser* p);
+extern Node* ast_parse_assignment(Parser* p);
+
+extern Node* ast_parse_arg_assign(Parser* p);
+extern Node* ast_parse_identifier(Parser* p);
+extern Node* ast_parse_args(Parser* p);
+extern Node* ast_parse_fun_args(Parser* p);
+extern Node* ast_parse_args_init(Parser* p);
+extern Node* ast_parse_let_stmt(Parser* p);
+extern Node* ast_parse_fun_def_stmt(Parser* p);
+
+extern Node* ast_parse_if(Parser* p);
+
+extern Node* ast_parse_stmt(Parser* p);
+extern Node* ast_parse_stmt_list(Parser* p);
+extern Node* ast_parse_block(Parser* p);
 
 extern void ast_print(Node* root, int pad);
 

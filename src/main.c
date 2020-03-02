@@ -4,7 +4,7 @@
 #include "ast.h"
 
 int main(int argc, char** argv) {
-	const char* code = "'I am a string \\x22';";
+	const char* code = "if 3.14159 > 4.0 { return; }";
 	Token* tokens;
 	int tokenCount = lexer_lex(code, &tokens);
 
@@ -17,9 +17,10 @@ int main(int argc, char** argv) {
 	Parser p;
 	parser_new(&p, tokens, tokenCount);
 
-	Node* nd = ast_parse_logicor(&p);
+	Node* nd = ast_parse_if(&p);
 	ast_print(nd, 0);
 
 	free(tokens);
+	node_free(nd);
 	return 0;
 }
