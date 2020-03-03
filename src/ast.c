@@ -9,6 +9,7 @@ static const char* AST_TYPES[] = {
 	"NT_NUMBER",
 	"NT_STRING",
 	"NT_BOOL",
+	"NT_LIST",
 
 	"NT_UNARY_MINUS",
 	"NT_UNARY_BITNOT",
@@ -60,7 +61,18 @@ static const char* AST_TYPES[] = {
 	"NT_ELSEIF",
 
 	"NT_STMT_LIST",
-	"NT_BLOCK"
+	"NT_BLOCK",
+
+	"NT_IF_STMT",
+	"NT_FOR_STMT",
+
+	"NT_LIST_ACCESS",
+	"NT_CALL",
+	"NT_FIELD_ACCESS",
+
+	"NT_TRAIL",
+	"NT_PROGRAM",
+	"NT_FUN_CALL_STMT"
 };
 
 Node* node_new() {
@@ -116,7 +128,7 @@ int parser_expect(Parser* p, int type, const char* lexeme) {
 	if (parser_accept(p, type, lexeme)) {
 		return 1;
 	}
-	printf("Expected a %s, got a %s.\n", TOKENS[type], TOKENS[parser_current(p).type]);
+	printf("(%d:%d) Expected a %s, got a %s.\n", parser_current(p).line, parser_current(p).column, TOKENS[type], TOKENS[parser_current(p).type]);
 	return 0;
 }
 
@@ -183,7 +195,20 @@ void ast_print(Node* root, int pad) {
 		case NT_ELSEIF:
 		case NT_BLOCK:
 		case NT_STMT_LIST:
+		case NT_IF_STMT:
+		case NT_FOR_STMT:
+		case NT_TRAIL:
+		case NT_LIST_ACCESS:
+		case NT_CALL:
+		case NT_FIELD_ACCESS:
+		case NT_PROGRAM:
+		case NT_LIST:
 		case NT_ARGS_INIT: {
+			for (int i = 0; i < root->childCount; i++)
+				ast_print(root->children[i], pad + 2);
+		} break;
+		case NT_FUN_CALL_STMT: {
+			_printpad(pad + 2); printf("name = %s\n", root->string);
 			for (int i = 0; i < root->childCount; i++)
 				ast_print(root->children[i], pad + 2);
 		} break;
@@ -199,6 +224,46 @@ void ast_print(Node* root, int pad) {
 	}
 	_printpad(pad);
 	printf("}\n");
+}
+
+Node* ast_parse_trailer(Parser* p) {
+	if (parser_accept(p, TT_LBRACKET, NULL)) {
+		parser_advance(p);
+		Node* expr = ast_parse_expr(p);
+		if (parser_expect(p, TT_RBRACKET, NULL)) {
+			parser_advance(p);
+		} else {
+			if (expr) node_free(expr);
+			return NULL;
+		}
+		Node* nd = node_new();
+		nd->type = NT_LIST_ACCESS;
+		node_push_child(nd, expr);
+		return nd;
+	} else if (parser_accept(p, TT_LPAREN, NULL)) {
+		parser_advance(p);
+		Node* args = ast_parse_fun_args(p);
+		if (parser_expect(p, TT_RPAREN, NULL)) {
+			parser_advance(p);
+		} else {
+			if (args) node_free(args);
+			return NULL;
+		}
+		Node* nd = node_new();
+		nd->type = NT_CALL;
+		node_push_child(nd, args);
+		return nd;
+	} else if (parser_accept(p, TT_POINT, NULL)) {
+		parser_advance(p);
+		if (parser_expect(p, TT_ID, NULL)) {
+			Node* nd = node_new();
+			nd->type = NT_IDENTIFIER;
+			nd->string = parser_current(p).lexeme;
+			parser_advance(p);
+			return nd;
+		}
+	}
+	return NULL;
 }
 
 Node* ast_parse_atom(Parser* p) {
@@ -222,7 +287,7 @@ Node* ast_parse_atom(Parser* p) {
 		return nd;
 	} else if (parser_accept(p, TT_LPAREN, NULL)) {
 		parser_advance(p);
-		Node* nd = ast_parse_addsub(p);
+		Node* nd = ast_parse_expr(p);
 		if (parser_expect(p, TT_RPAREN, NULL)) {
 			parser_advance(p);
 			return nd;
@@ -233,9 +298,40 @@ Node* ast_parse_atom(Parser* p) {
 		nd->string = parser_current(p).lexeme;
 		parser_advance(p);
 		return nd;
+	} else if (parser_accept(p, TT_LBRACKET, NULL)) {
+		parser_advance(p);
+		Node* nd = node_new();
+		nd->type = NT_LIST;
+		for (;;) {
+			node_push_child(nd, ast_parse_expr(p));
+			if (parser_accept(p, TT_RBRACKET, NULL)) break;
+			if (parser_expect(p, TT_COMMA, NULL)) {
+				parser_advance(p);
+			}
+		}
+
+		if (parser_expect(p, TT_RBRACKET, NULL)) {
+			parser_advance(p);
+		} else {
+			node_free(nd);
+			return NULL;
+		}
+		return nd;
 	}
 	// TODO: Other types...
 	return NULL;
+}
+
+Node* ast_parse_trail(Parser* p) {
+	Node* at = ast_parse_atom(p);
+	Node* trailer = ast_parse_trailer(p);
+	if (trailer == NULL) return at;
+
+	Node* nd = node_new();
+	nd->type = NT_TRAIL;
+	node_push_child(nd, at);
+	node_push_child(nd, trailer);
+	return nd;;
 }
 
 Node* ast_parse_factor(Parser* p) {
@@ -243,20 +339,20 @@ Node* ast_parse_factor(Parser* p) {
 		parser_advance(p);
 		Node* nd = node_new();
 		nd->type = NT_UNARY_MINUS;
-		node_push_child(nd, ast_parse_atom(p));
+		node_push_child(nd, ast_parse_trail(p));
 		return nd;
 	} else if (parser_accept(p, TT_BITNOT, NULL)) {
 		parser_advance(p);
 		Node* nd = node_new();
 		nd->type = NT_UNARY_BITNOT;
-		node_push_child(nd, ast_parse_atom(p));
+		node_push_child(nd, ast_parse_trail(p));
 	} else if (parser_accept(p, TT_EXCLAMATION, NULL)) {
 		parser_advance(p);
 		Node* nd = node_new();
 		nd->type = NT_UNARY_NOT;
-		node_push_child(nd, ast_parse_atom(p));
+		node_push_child(nd, ast_parse_trail(p));
 	}
-	return ast_parse_atom(p);
+	return ast_parse_trail(p);
 }
 
 Node* ast_parse_muldiv(Parser* p) {
@@ -561,14 +657,12 @@ Node* ast_parse_identifier(Parser* p) {
 Node* ast_parse_args(Parser* p) {
 	Node* nd = node_new();
 	nd->type = NT_ARGS;
-	Node* first = ast_parse_identifier(p);
-	if (first != NULL) {
-		node_push_child(nd, first);
-		for (;;) {
-			if (parser_expect(p, TT_COMMA, NULL)) {
-				parser_advance(p);
-			} else break;
-			node_push_child(nd, ast_parse_identifier(p));
+	while (parser_accept(p, TT_ID, NULL)) {
+		node_push_child(nd, ast_parse_identifier(p));
+		if (parser_accept(p, TT_EOF, NULL)) break;
+		if (parser_accept(p, TT_KEYWORD, NULL)) break;
+		if (parser_expect(p, TT_COMMA, NULL)) {
+			parser_advance(p);
 		}
 	}
 	return nd;
@@ -577,14 +671,12 @@ Node* ast_parse_args(Parser* p) {
 Node* ast_parse_fun_args(Parser* p) {
 	Node* nd = node_new();
 	nd->type = NT_FUN_ARGS;
-	Node* first = ast_parse_expr(p);
-	if (first != NULL) {
-		node_push_child(nd, first);
-		for (;;) {
-			if (parser_expect(p, TT_COMMA, NULL)) {
-				parser_advance(p);
-			} else break;
-			node_push_child(nd, ast_parse_expr(p));
+	while (!parser_accept(p, TT_EOF, NULL) && !parser_accept(p, TT_RPAREN, NULL)) {
+		node_push_child(nd, ast_parse_expr(p));
+		if (parser_accept(p, TT_RPAREN, NULL)) break;
+		if (parser_accept(p, TT_EOF, NULL)) break;
+		if (parser_expect(p, TT_COMMA, NULL)) {
+			parser_advance(p);
 		}
 	}
 	return nd;
@@ -629,9 +721,6 @@ Node* ast_parse_stmt(Parser* p) {
 		nd->type = NT_RETURN;
 		if (!parser_accept(p, TT_SEMICOLON, NULL)) {
 			node_push_child(nd, ast_parse_expr(p));
-		} else {
-			node_free(nd);
-			return NULL;
 		}
 		return nd;
 	} else if (parser_accept(p, TT_KEYWORD, "continue")) {
@@ -646,15 +735,26 @@ Node* ast_parse_stmt(Parser* p) {
 		return ast_parse_let_stmt(p);
 	} else if (parser_accept(p, TT_KEYWORD, "fun")) {
 		return ast_parse_fun_def_stmt(p);
+	} else if (parser_accept(p, TT_KEYWORD, "if")) {
+		return ast_parse_if_stmt(p);
+	} else if (parser_accept(p, TT_KEYWORD, "for")) {
+		return ast_parse_for_stmt(p);
+	} else if (parser_accept(p, TT_ID, NULL)) {
+		return ast_parse_fun_call_stmt(p);
 	}
-	return NULL;
+	return ast_parse_expr(p);
 }
 
 Node* ast_parse_stmt_list(Parser* p) {
 	Node* nd = node_new();
 	nd->type = NT_STMT_LIST;
-	while (!parser_accept(p, TT_EOF, NULL)) {
+	while (!parser_accept(p, TT_EOF, NULL) && !parser_accept(p, TT_RBRACE, NULL)) {
 		node_push_child(nd, ast_parse_stmt(p));
+		if (parser_accept(p, TT_EOF, NULL)) break;
+		if (parser_accept(p, TT_RBRACE, NULL)) {
+			parser_advance(p);
+			break;
+		}
 		if (!parser_expect(p, TT_SEMICOLON, NULL)) break;
 		parser_advance(p);
 	}
@@ -662,7 +762,7 @@ Node* ast_parse_stmt_list(Parser* p) {
 }
 
 Node* ast_parse_block(Parser* p) {
-	if (parser_accept(p, TT_LBRACE, NULL)) {
+	if (parser_expect(p, TT_LBRACE, NULL)) {
 		parser_advance(p);
 		Node* stmts = ast_parse_stmt_list(p);
 		if (parser_expect(p, TT_RBRACE, NULL)) {
@@ -674,7 +774,7 @@ Node* ast_parse_block(Parser* p) {
 }
 
 Node* ast_parse_if(Parser* p) {
-	if (parser_accept(p, TT_KEYWORD, "if")) {
+	if (parser_expect(p, TT_KEYWORD, "if")) {
 		parser_advance(p);
 		Node* cond = ast_parse_expr(p);
 		if (parser_expect(p, TT_LBRACE, NULL) && cond != NULL) {
@@ -689,4 +789,124 @@ Node* ast_parse_if(Parser* p) {
 		} else node_free(cond);
 	}
 	return NULL;
+}
+
+Node* ast_parse_elif(Parser* p) {
+	if (parser_expect(p, TT_KEYWORD, "elif")) {
+		parser_advance(p);
+		Node* cond = ast_parse_expr(p);
+		if (parser_expect(p, TT_LBRACE, NULL) && cond != NULL) {
+			Node* body = ast_parse_block(p);
+			if (body != NULL) {
+				Node* nd = node_new();
+				nd->type = NT_ELSEIF;
+				node_push_child(nd, cond);
+				node_push_child(nd, body);
+				return nd;
+			}
+		} else node_free(cond);
+	}
+	return NULL;
+}
+
+Node* ast_parse_else(Parser* p) {
+	if (parser_expect(p, TT_KEYWORD, "else")) {
+		parser_advance(p);
+		if (parser_expect(p, TT_LBRACE, NULL)) {
+			Node* body = ast_parse_block(p);
+			if (body != NULL) {
+				Node* nd = node_new();
+				nd->type = NT_ELSE;
+				node_push_child(nd, body);
+				return nd;
+			}
+		}
+	}
+	return NULL;
+}
+
+Node* ast_parse_if_stmt(Parser* p) {
+	if (parser_accept(p, TT_KEYWORD, "if")) {
+		Node* nd = node_new();
+		nd->type = NT_IF_STMT;
+		node_push_child(nd, ast_parse_if(p));
+
+		if (nd->children[0] == NULL) {
+			node_free(nd);
+			return NULL;
+		}
+
+		while (parser_accept(p, TT_KEYWORD, "elif")) {
+			node_push_child(nd, ast_parse_elif(p));
+		}
+
+		if (parser_accept(p, TT_KEYWORD, "else")) {
+			node_push_child(nd, ast_parse_else(p));
+		}
+
+		return nd;
+	}
+	return NULL;
+}
+
+Node* ast_parse_for_stmt(Parser* p) {
+	if (parser_accept(p, TT_KEYWORD, "for")) {
+		parser_advance(p);
+		Node* args = ast_parse_args(p);
+		if (args == NULL) {
+			return NULL;
+		}
+
+		if (parser_expect(p, TT_KEYWORD, "in")) {
+			parser_advance(p);
+			Node* expr = ast_parse_expr(p);
+			if (expr == NULL) {
+				node_free(args);
+				return NULL;
+			}
+			Node* block = ast_parse_block(p);
+			if (block == NULL) {
+				node_free(args);
+				return NULL;
+			}
+
+			Node* nd = node_new();
+			nd->type = NT_FOR_STMT;
+			node_push_child(nd, args);
+			node_push_child(nd, expr);
+			node_push_child(nd, block);
+			return nd;
+		} else node_free(args);
+	}
+	return NULL;
+}
+
+Node* ast_parse_fun_call_stmt(Parser* p) {
+	if (parser_expect(p, TT_ID, NULL)) {
+		Node* nd = node_new();
+		nd->type = NT_FUN_CALL_STMT;
+		nd->string = parser_current(p).lexeme;
+		parser_advance(p);
+		if (parser_expect(p, TT_LPAREN, NULL)) {
+			parser_advance(p);
+			Node* args = ast_parse_fun_args(p);
+			if (args != NULL) {
+				node_push_child(nd, args);
+			}
+
+			if (parser_expect(p, TT_RPAREN, NULL)) {
+				parser_advance(p);
+				return nd;
+			}
+			node_free(nd);
+		} else node_free(nd);
+	}
+	return NULL;
+}
+
+Node* ast_parse_program(Parser* p) {
+	Node* nd = node_new();
+	nd->type = NT_PROGRAM;
+	node_push_child(nd, ast_parse_stmt_list(p));
+	return nd;
 }

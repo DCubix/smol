@@ -4,7 +4,8 @@
 #include "ast.h"
 
 int main(int argc, char** argv) {
-	const char* code = "if 3.14159 > 4.0 { return; }";
+	const char* code =
+		"for item in ['a', 'b', 'c'] { print(item); }";
 	Token* tokens;
 	int tokenCount = lexer_lex(code, &tokens);
 
@@ -17,7 +18,7 @@ int main(int argc, char** argv) {
 	Parser p;
 	parser_new(&p, tokens, tokenCount);
 
-	Node* nd = ast_parse_if(&p);
+	Node* nd = ast_parse_program(&p);
 	ast_print(nd, 0);
 
 	free(tokens);

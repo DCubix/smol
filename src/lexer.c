@@ -99,6 +99,8 @@ void print_token(Token tok) {
 
 void token_init(Token* tok) {
 	tok->lexeme = (char*) malloc(sizeof(char) * LEX_MAX_LEXEME_SIZE);
+	tok->line = 0;
+	tok->column = 0;
 	memset(tok->lexeme, 0, sizeof(char) * LEX_MAX_LEXEME_SIZE);
 }
 
@@ -108,8 +110,8 @@ int lexer_lex(const char* input, Token** out) {
 
 	Scanner* sc = scanner_new(input);
 
-#define PUSH(tp, tok) tok.type = tp, TokenArray_push(&ret, tok)
-#define SPUSH(tp) { Token tok; tok.lexeme = NULL; tok.type = tp; TokenArray_push(&ret, tok); }
+#define PUSH(tp, tok)  tok.line = sc->line, tok.column = sc->column, tok.type = tp, TokenArray_push(&ret, tok)
+#define SPUSH(tp) { Token tok; tok.lexeme = NULL; tok.type = tp; tok.line = sc->line; tok.column = sc->column; TokenArray_push(&ret, tok); }
 
 	while (scanner_peek(sc) != '\0') {
 		char c = scanner_peek(sc);

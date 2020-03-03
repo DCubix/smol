@@ -55,6 +55,7 @@ extern const char* TOKENS[];
 typedef struct Token_t {
 	char* lexeme;
 	int type;
+	int line, column;
 } Token;
 
 extern void token_init(Token* tok);

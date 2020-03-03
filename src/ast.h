@@ -11,6 +11,7 @@ typedef struct Node_t {
 		NT_NUMBER,
 		NT_STRING,
 		NT_BOOL,
+		NT_LIST,
 
 		NT_UNARY_MINUS,
 		NT_UNARY_BITNOT,
@@ -62,7 +63,20 @@ typedef struct Node_t {
 		NT_ELSEIF,
 
 		NT_STMT_LIST,
-		NT_BLOCK
+		NT_BLOCK,
+
+		NT_IF_STMT,
+		NT_FOR_STMT,
+
+		NT_LIST_ACCESS,
+		NT_CALL,
+		NT_FIELD_ACCESS,
+
+		NT_TRAIL,
+
+		NT_PROGRAM,
+
+		NT_FUN_CALL_STMT
 
 		// TODO: Add More
 	} type;
@@ -93,7 +107,10 @@ extern int parser_expect(Parser* p, int type, const char* lexeme);
 extern void parser_advance(Parser* p);
 extern Token parser_current(Parser* p);
 
+extern Node* ast_parse_trailer(Parser* p);
+
 extern Node* ast_parse_atom(Parser* p);
+extern Node* ast_parse_trail(Parser* p);
 extern Node* ast_parse_factor(Parser* p);
 extern Node* ast_parse_muldiv(Parser* p);
 extern Node* ast_parse_addsub(Parser* p);
@@ -116,10 +133,19 @@ extern Node* ast_parse_let_stmt(Parser* p);
 extern Node* ast_parse_fun_def_stmt(Parser* p);
 
 extern Node* ast_parse_if(Parser* p);
+extern Node* ast_parse_elif(Parser* p);
+extern Node* ast_parse_else(Parser* p);
+
+extern Node* ast_parse_if_stmt(Parser* p);
+extern Node* ast_parse_for_stmt(Parser* p);
+
+extern Node* ast_parse_fun_call_stmt(Parser* p);
 
 extern Node* ast_parse_stmt(Parser* p);
 extern Node* ast_parse_stmt_list(Parser* p);
 extern Node* ast_parse_block(Parser* p);
+
+extern Node* ast_parse_program(Parser* p);
 
 extern void ast_print(Node* root, int pad);
 

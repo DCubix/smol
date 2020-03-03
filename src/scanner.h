@@ -4,6 +4,7 @@
 typedef struct Scanner_t {
 	char* buffer;
 	int pos, size;
+	int line, column;
 } Scanner;
 
 extern Scanner* scanner_new(const char* buf);

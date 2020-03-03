@@ -9,18 +9,23 @@ Scanner* scanner_new(const char* buf) {
 	scan->size = strlen(buf);
 	scan->buffer = (char*) malloc(sizeof(char) * scan->size);
 	scan->pos = 0;
+	scan->line = 0;
+	scan->column = 0;
 	strcpy(scan->buffer, buf);
 	return scan;
 }
 
 void scanner_free(Scanner* scanner) {
-	//free(scanner->buffer);
 	scanner->pos = 0;
 	free(scanner);
 }
 
 char scanner_scan(Scanner* s) {
 	if (s->pos >= s->size) return '\0';
+	if (s->buffer[s->column++] == '\n') {
+		s->line++;
+		s->column = 0;
+	}
 	return s->buffer[s->pos++];
 }
 

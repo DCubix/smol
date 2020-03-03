@@ -12,6 +12,7 @@ stmt
 	| letStmt
 	| ifStatement
 	| forStatement
+	| ID '(' funArgs? ')'
 	;
 
 forStatement : 'for' args 'in' expr block;
