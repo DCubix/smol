@@ -28,7 +28,8 @@ static const char* KEYWORDS[] = {
 	"string",
 	"bool",
 	"true",
-	"false"
+	"false",
+	"nil"
 };
 
 const char* TOKENS[] = {
